@@ -1,88 +1,63 @@
 import asyncio
-import paho.mqtt.client as mqtt
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+# ---------------------------
+# Состояние устройства
+# ---------------------------
+device_state = {"on": False}  # False = выключено, True = включено
+
+# ---------------------------
+# Хендлеры команд
+# ---------------------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Привет! Я ваш ESP8266 Telegram бот. Используй команды /on и /off."
+    )
+
+async def turn_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    device_state["on"] = True
+    await update.message.reply_text("✅ Устройство включено!")
+
+async def turn_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    device_state["on"] = False
+    await update.message.reply_text("❌ Устройство выключено!")
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    state_text = "включено ✅" if device_state["on"] else "выключено ❌"
+    await update.message.reply_text(f"Состояние устройства: {state_text}")
+
+# ---------------------------
+# Исправляем Application для Python 3.13
+# ---------------------------
+class MyApplication(ApplicationBuilder):
+    def build(self):
+        app = super().build()
+        if not hasattr(app, "_Application__stop_running_marker"):
+            app._Application__stop_running_marker = asyncio.Event()
+        return app
+
+# ---------------------------
+# Токен бота
+# ---------------------------
 import os
+TG_TOKEN = os.getenv("TG_TOKEN")  # Брать из Render env vars
 
-# --- CONFIG ---
-TG_TOKEN = os.getenv("TG_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
+# ---------------------------
+# Создаем приложение
+# ---------------------------
+app = MyApplication().token(TG_TOKEN).build()
 
-MQTT_BROKER = "broker.hivemq.com"
-TOPIC_CMD = "home/esp1/cmd"
-TOPIC_STATUS = "home/esp1/status"
+# Добавляем команды
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("on", turn_on))
+app.add_handler(CommandHandler("off", turn_off))
+app.add_handler(CommandHandler("status", status))
 
-# --- MQTT CLIENT ---
-mqtt_client = mqtt.Client()
-
-# --- TELEGRAM ---
-app = ApplicationBuilder().token(TG_TOKEN).build()
-
-
-# ============= MQTT CALLBACKS =============
-def on_connect(client, userdata, flags, rc):
-    print("MQTT connected:", rc)
-    client.subscribe(TOPIC_STATUS)
+# ---------------------------
+# Запуск бота
+# ---------------------------
+if __name__ == "__main__":
+    app.run_polling()
 
 
-def on_message(client, userdata, msg):
-    payload = msg.payload.decode()
-    print("ESP:", payload)
-    asyncio.run(send_tg(f"📡 ESP сообщает: {payload}"))
-
-
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
-
-
-# ============= TELEGRAM SEND =============
-async def send_tg(text):
-    try:
-        await app.bot.send_message(CHAT_ID, text)
-    except Exception as e:
-        print("Telegram send error:", e)
-
-
-# ============= TELEGRAM COMMANDS =============
-async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mqtt_client.publish(TOPIC_CMD, "on")
-    await update.message.reply_text("LED → ON")
-
-
-async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mqtt_client.publish(TOPIC_CMD, "off")
-    await update.message.reply_text("LED → OFF")
-
-
-async def cmd_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mqtt_client.publish(TOPIC_CMD, "toggle")
-    await update.message.reply_text("LED → TOGGLE")
-
-
-async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mqtt_client.publish(TOPIC_CMD, "gett")   # твоя команда gett
-    await update.message.reply_text("📡 Запрашиваю температуру…" )
-
-
-app.add_handler(CommandHandler("on", cmd_on))
-app.add_handler(CommandHandler("off", cmd_off))
-app.add_handler(CommandHandler("toggle", cmd_toggle))
-app.add_handler(CommandHandler("temp", cmd_temp))
-
-
-# ================== MAIN ==================
-async def main():
-    # MQTT
-    mqtt_client.connect(MQTT_BROKER, 1883, 60)
-    mqtt_client.loop_start()
-
-    # Telegram
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-
-    print("BOT + MQTT started!")
-    await asyncio.Event().wait()
-
-
-asyncio.run(main())
