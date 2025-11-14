@@ -1,11 +1,11 @@
-import asyncio
+import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ---------------------------
 # Состояние устройства
 # ---------------------------
-device_state = {"on": False}  # False = выключено, True = включено
+device_state = {"on": False}
 
 # ---------------------------
 # Хендлеры команд
@@ -28,25 +28,14 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Состояние устройства: {state_text}")
 
 # ---------------------------
-# Исправляем Application для Python 3.13
+# Токен бота из переменных среды
 # ---------------------------
-class MyApplication(ApplicationBuilder):
-    def build(self):
-        app = super().build()
-        if not hasattr(app, "_Application__stop_running_marker"):
-            app._Application__stop_running_marker = asyncio.Event()
-        return app
-
-# ---------------------------
-# Токен бота
-# ---------------------------
-import os
-TG_TOKEN = os.getenv("TG_TOKEN")  # Брать из Render env vars
+TG_TOKEN = os.getenv("TG_TOKEN")
 
 # ---------------------------
 # Создаем приложение
 # ---------------------------
-app = MyApplication().token(TG_TOKEN).build()
+app = ApplicationBuilder().token(TG_TOKEN).build()
 
 # Добавляем команды
 app.add_handler(CommandHandler("start", start))
@@ -59,5 +48,3 @@ app.add_handler(CommandHandler("status", status))
 # ---------------------------
 if __name__ == "__main__":
     app.run_polling()
-
-
