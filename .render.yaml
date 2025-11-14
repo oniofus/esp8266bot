@@ -1,7 +1,11 @@
 services:
-  - type: web
-    name: esp8266bot
+  - type: worker
+    name: esp8266-tg-broker
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
-    pythonVersion: 3.12.6
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python server.py"
+    envVars:
+      - key: TG_TOKEN
+        sync: false
+      - key: CHAT_ID
+        sync: false
