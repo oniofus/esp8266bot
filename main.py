@@ -30,3 +30,37 @@ def on_message(client, userdata, msg):
     text = msg.payload.decode()
     print("ESP:", text)
     # Запускаем асинхронную отправку в Te
+    asyncio.run(send_telegram_message("ESP: " + text))
+
+mqtt_client.on_connect = on_connect
+mqtt_client.on_message = on_message
+
+
+# === Telegram commands ===
+
+async def cmd_led_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mqtt_client.publish(TOPIC_CMD, "LED_ON")
+    await update.message.reply_text("→ LED_ON отправлено")
+
+async def cmd_led_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mqtt_client.publish(TOPIC_CMD, "LED_OFF")
+    await update.message.reply_text("→ LED_OFF отправлено")
+
+app.add_handler(CommandHandler("on", cmd_led_on))
+app.add_handler(CommandHandler("off", cmd_led_off))
+
+# === MAIN ===
+async def main():
+    print("Starting MQTT…")
+    mqtt_client.connect(MQTT_BROKER, 1883, 60)
+    mqtt_client.loop_start()
+
+    print("Starting Telegram bot…")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+
+    await asyncio.Event().wait()  # never exit
+
+asyncio.run(main())
+
