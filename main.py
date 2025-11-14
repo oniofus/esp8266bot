@@ -29,8 +29,10 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     text = msg.payload.decode()
     print("ESP:", text)
-    # Запускаем асинхронную отправку в Te
-    asyncio.run(send_telegram_message("ESP: " + text))
+
+    loop = asyncio.get_event_loop()
+    loop.create_task(send_telegram_message("ESP: " + text))
+
 
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
@@ -63,4 +65,5 @@ async def main():
     await asyncio.Event().wait()  # never exit
 
 asyncio.run(main())
+
 
